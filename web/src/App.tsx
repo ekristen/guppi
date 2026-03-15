@@ -50,11 +50,11 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
   const { events: allToolEvents, handleEvent: handleToolEvent, getSessionEvents, sessionNeedsAttention, dismissEvent, dismissAll: dismissAllEvents } = useToolEvents()
   const { getSessionActivity, handleActivityEvent } = useActivity()
   const { pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
-  const { processToolEvent } = useNotifications(pushState === 'subscribed')
+  const { processToolEvent } = useNotifications()
   const { hosts, refresh: refreshHosts } = useHosts()
   const [currentView, setCurrentView] = useState<View>(() => getViewFromPath().view)
   const [selectedSession, setSelectedSession] = useState<string | null>(() => getViewFromPath().sessionKey)
-  const hasMultipleHosts = hosts.length > 1
+  const hasMultipleHosts = hosts.length > 1 || sessions.some(s => !!s.host)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const loadedVersionRef = useRef<string | null>(null)
   const updateAvailable = loadedVersionRef.current !== null && serverVersion !== null && serverVersion !== loadedVersionRef.current

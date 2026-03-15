@@ -4,15 +4,13 @@ import { PreferencesContext } from './usePreferences'
 
 /**
  * useNotifications handles browser desktop notifications for tool events.
- * When push notifications are subscribed, browser notifications are skipped
- * (the service worker handles them instead).
+ * Browser notifications are always shown when the app is open. If push
+ * notifications also fire, the service worker deduplicates via the tag field.
  */
-export function useNotifications(pushSubscribed = false) {
+export function useNotifications() {
   const prevEventsRef = useRef<Map<string, ToolEvent>>(new Map())
   const browserNotifs = useRef<Map<string, globalThis.Notification>>(new Map())
   const { prefs } = useContext(PreferencesContext)
-  const pushSubscribedRef = useRef(pushSubscribed)
-  pushSubscribedRef.current = pushSubscribed
 
   const processToolEvent = useCallback((evt: ToolEvent) => {
     const key = `${evt.host || ''}:${evt.session}:${evt.window}:${evt.pane || ''}`
@@ -45,18 +43,16 @@ export function useNotifications(pushSubscribed = false) {
 
     if (!shouldNotify) return
 
-    // Browser notification when push isn't handling it
-    if (!pushSubscribedRef.current) {
-      const title = evt.status === 'waiting'
-        ? `${evt.tool} needs input`
-        : `${evt.tool} error`
-      const body = `${evt.status === 'waiting' ? 'Waiting' : 'Error'} in session "${evt.session}"${evt.message ? `: ${evt.message}` : ''}`
+    // Show browser notification (service worker deduplicates via tag if push also fires)
+    const title = evt.status === 'waiting'
+      ? `${evt.tool} needs input`
+      : `${evt.tool} error`
+    const body = `${evt.status === 'waiting' ? 'Waiting' : 'Error'} in session "${evt.session}"${evt.message ? `: ${evt.message}` : ''}`
 
-      if ('Notification' in window && globalThis.Notification.permission === 'granted') {
-        const n = new globalThis.Notification(title, { body, icon: '/favicon.ico' })
-        browserNotifs.current.set(key, n)
-        n.onclose = () => browserNotifs.current.delete(key)
-      }
+    if ('Notification' in window && globalThis.Notification.permission === 'granted') {
+      const n = new globalThis.Notification(title, { body, icon: '/favicon.ico' })
+      browserNotifs.current.set(key, n)
+      n.onclose = () => browserNotifs.current.delete(key)
     }
   }, [prefs.notifications.statuses])
 

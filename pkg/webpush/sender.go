@@ -101,16 +101,23 @@ func (s *Sender) sendAll(evt *toolevents.Event) {
 			Subscriber:      "mailto:guppi@localhost",
 			VAPIDPublicKey:  s.keys.PublicKey,
 			VAPIDPrivateKey: s.keys.PrivateKey,
-			TTL:             30,
+			TTL:             86400,
+			Urgency:         wp.UrgencyHigh,
 		})
 		if err != nil {
-			s.logger.WithError(err).WithField("endpoint", sub.Endpoint).Debug("push send failed")
+			s.logger.WithError(err).WithField("endpoint", sub.Endpoint).Warn("push send failed")
 			// Remove invalid subscriptions (410 Gone or 404)
 			if resp != nil && (resp.StatusCode == 410 || resp.StatusCode == 404) {
 				s.store.Remove(sub.Endpoint)
 				s.logger.WithField("endpoint", sub.Endpoint).Info("removed expired subscription")
 			}
 			continue
+		}
+		if resp.StatusCode >= 400 {
+			s.logger.WithField("endpoint", sub.Endpoint).WithField("status", resp.StatusCode).Warn("push endpoint returned error")
+			if resp.StatusCode == 410 || resp.StatusCode == 404 {
+				s.store.Remove(sub.Endpoint)
+			}
 		}
 		resp.Body.Close()
 	}
