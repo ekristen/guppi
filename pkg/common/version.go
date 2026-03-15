@@ -4,13 +4,13 @@ package common
 var NAME = "guppi"
 
 // SUMMARY of the Version
-var SUMMARY = "v0.1.0-beta.0" // x-release-please-version
+var SUMMARY = "v0.1.1-beta.2" // x-release-please-version
 
 // BRANCH of the Version
 var BRANCH = "dev"
 
 // VERSION of Release
-var VERSION = "0.1.0-beta.0" // x-release-please-version
+var VERSION = "0.1.1-beta.2" // x-release-please-version
 
 var COMMIT = "dirty"
 
