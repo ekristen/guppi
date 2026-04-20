@@ -1,7 +1,6 @@
 package peer
 
 import (
-
 	"net/url"
 	"sync"
 
@@ -107,7 +106,9 @@ func (pm *PTYManager) Open(req PTYOpenPayload) {
 					return
 				}
 			case websocket.TextMessage:
-				// Could be resize, but resize comes over control channel
+				if err := tmux.HandlePTYControlMessage(ptySess, data); err != nil {
+					log.WithError(err).Debug("control message failed")
+				}
 			}
 		}
 	}()

@@ -85,11 +85,39 @@ const clipboardProvider: IClipboardProvider = {
   },
 }
 
+const MAX_PASTED_IMAGE_BYTES = 10 * 1024 * 1024
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
+
+async function sendPastedImage(ws: WebSocket, file: File, fallbackType: string): Promise<void> {
+  if (file.size > MAX_PASTED_IMAGE_BYTES) {
+    console.warn(`Pasted image exceeds ${MAX_PASTED_IMAGE_BYTES} byte limit`)
+    return
+  }
+
+  const buffer = await file.arrayBuffer()
+  ws.send(JSON.stringify({
+    type: 'paste-image',
+    data: bytesToBase64(new Uint8Array(buffer)),
+    mime: file.type || fallbackType,
+    filename: file.name,
+  }))
+}
+
 export function useTerminal(sessionName: string, hostId?: string) {
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const containerRef = useRef<HTMLElement | null>(null)
+  const listenerCleanupRef = useRef<(() => void) | null>(null)
   const reconnectTimer = useRef<number | undefined>(undefined)
   const activeConnId = useRef(0)
   const [termConnected, setTermConnected] = useState(false)
@@ -118,6 +146,8 @@ export function useTerminal(sessionName: string, hostId?: string) {
     }
     cleanupWs()
     if (termRef.current) {
+      listenerCleanupRef.current?.()
+      listenerCleanupRef.current = null
       termRef.current.dispose()
     }
 
@@ -149,6 +179,7 @@ export function useTerminal(sessionName: string, hostId?: string) {
     ;(window as any).__term = term
 
     term.open(container)
+    const helperTextarea = container.querySelector('textarea.xterm-helper-textarea') as HTMLTextAreaElement | null
 
     // Request clipboard-write permission early so OSC 52 writes may work directly
     requestClipboardPermission()
@@ -200,13 +231,40 @@ export function useTerminal(sessionName: string, hostId?: string) {
 
     // Flush deferred clipboard writes on mouse interaction (capture phase
     // to intercept before xterm.js can stopPropagation)
-    container.addEventListener('mousedown', flushPendingClipboard, true)
-    container.addEventListener('keydown', flushPendingClipboard, true)
+    const onMouseDown = () => flushPendingClipboard()
+    const onKeyDown = () => flushPendingClipboard()
+    const onPaste = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items ?? [])
+      const imageItem = items.find(item => item.type.startsWith('image/'))
+      if (!imageItem) return
+
+      const file = imageItem.getAsFile()
+      const currentWs = wsRef.current
+      if (!file || !currentWs || currentWs.readyState !== WebSocket.OPEN) return
+
+      e.preventDefault()
+
+      sendPastedImage(currentWs, file, imageItem.type)
+        .catch((err) => {
+          console.error('Failed to read pasted image:', err)
+        })
+    }
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault()
+    }
+
+    container.addEventListener('mousedown', onMouseDown, true)
+    container.addEventListener('keydown', onKeyDown, true)
+    helperTextarea?.addEventListener('paste', onPaste)
 
     // Suppress browser's native context menu so right-click passes through to tmux
-    container.addEventListener('contextmenu', (e) => {
-      e.preventDefault()
-    })
+    container.addEventListener('contextmenu', onContextMenu)
+    listenerCleanupRef.current = () => {
+      container.removeEventListener('mousedown', onMouseDown, true)
+      container.removeEventListener('keydown', onKeyDown, true)
+      helperTextarea?.removeEventListener('paste', onPaste)
+      container.removeEventListener('contextmenu', onContextMenu)
+    }
 
     // Fit terminal to container — retry a few times to handle layout settling
     const doFit = () => {
@@ -307,6 +365,8 @@ export function useTerminal(sessionName: string, hostId?: string) {
     }
     cleanupWs()
     if (termRef.current) {
+      listenerCleanupRef.current?.()
+      listenerCleanupRef.current = null
       termRef.current.dispose()
       termRef.current = null
     }

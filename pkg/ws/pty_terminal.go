@@ -1,7 +1,6 @@
 package ws
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -24,13 +23,6 @@ func NewPTYTerminalHandler(tmuxPath string, activityTracker *activity.Tracker) *
 		tmuxPath:        tmuxPath,
 		activityTracker: activityTracker,
 	}
-}
-
-// resizeMsg is the JSON control message for resize events
-type resizeMsg struct {
-	Type string `json:"type"`
-	Cols uint16 `json:"cols"`
-	Rows uint16 `json:"rows"`
 }
 
 // HandleSession handles a WebSocket connection for an entire tmux session via PTY.
@@ -103,15 +95,8 @@ func (h *PTYTerminalHandler) HandleSession(w http.ResponseWriter, r *http.Reques
 
 		switch msgType {
 		case websocket.TextMessage:
-			var msg resizeMsg
-			if err := json.Unmarshal(message, &msg); err != nil {
-				log.WithError(err).Debug("invalid control message")
-				continue
-			}
-			if msg.Type == "resize" && msg.Cols > 0 && msg.Rows > 0 {
-				if err := ptySess.Resize(msg.Cols, msg.Rows); err != nil {
-					log.WithError(err).Debug("resize failed")
-				}
+			if err := tmux.HandlePTYControlMessage(ptySess, message); err != nil {
+				log.WithError(err).Debug("control message failed")
 			}
 
 		case websocket.BinaryMessage:
