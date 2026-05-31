@@ -67,7 +67,7 @@ function Divider() {
 
 function Row({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1.5">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-1.5">
       <div className="flex-1">
         <div className="text-sm text-foreground">{label}</div>
         {description && <div className="text-xs text-muted-foreground mt-0.5">{description}</div>}
@@ -84,7 +84,7 @@ function SelectInput({ value, onChange, options }: { value: string; onChange: (v
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground outline-none focus:border-primary min-w-[160px]"
+      className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground outline-none focus:border-primary min-w-0 sm:min-w-[160px]"
     >
       {options.map(o => (
         <option key={o.value} value={o.value}>{o.label}</option>

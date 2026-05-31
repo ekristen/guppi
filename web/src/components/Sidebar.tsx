@@ -17,6 +17,9 @@ interface SidebarProps {
   getSessionEvents: (session: string) => ToolEvent[]
   sessionNeedsAttention: (session: string) => boolean
   getSessionActivity: (session: string) => ActivitySnapshot | undefined
+  isMobile?: boolean
+  open?: boolean
+  onClose?: () => void
 }
 
 const shellCommands = new Set(['bash', 'zsh', 'fish', 'sh', 'dash', 'ksh', 'csh', 'tcsh', 'tmux', 'login'])
@@ -101,6 +104,9 @@ export function Sidebar({
   getSessionEvents,
   sessionNeedsAttention,
   getSessionActivity,
+  isMobile,
+  open,
+  onClose,
 }: SidebarProps) {
   const { prefs } = usePreferences()
   const [hiddenSet, setHiddenSet] = useState<Set<string>>(() => getHiddenSessions())
@@ -250,16 +256,13 @@ export function Sidebar({
     )
   }
 
-  const isHidden = collapsed && collapseMode === 'hidden'
+  const isHidden = !isMobile && collapsed && collapseMode === 'hidden'
 
-  return (
-    <aside className={cn(
-      'flex flex-col h-full bg-sidebar transition-all duration-300 font-mono text-sm font-bold',
-      collapsed
-        ? collapseMode === 'hidden' ? 'w-0 overflow-hidden' : 'w-16'
-        : 'w-56',
-      !isHidden && 'border-r border-sidebar-border',
-    )}>
+  // Mobile overlay: not open = don't render
+  if (isMobile && !open) return null
+
+  const sidebarContent = (
+    <>
       {/* Session list */}
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-1">
@@ -341,6 +344,39 @@ export function Sidebar({
           </div>
         </div>
       )}
+    </>
+  )
+
+  // Mobile overlay rendering
+  if (isMobile) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={onClose}
+        />
+        <aside className={cn(
+          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-sidebar font-mono text-sm font-bold',
+          'border-r border-sidebar-border',
+          'animate-[slideInFromLeft_0.2s_ease-out]',
+        )}>
+          {sidebarContent}
+        </aside>
+      </>
+    )
+  }
+
+  // Desktop rendering (original behavior)
+  return (
+    <aside className={cn(
+      'flex flex-col h-full bg-sidebar transition-all duration-300 font-mono text-sm font-bold',
+      collapsed
+        ? collapseMode === 'hidden' ? 'w-0 overflow-hidden' : 'w-16'
+        : 'w-56',
+      !isHidden && 'border-r border-sidebar-border',
+    )}>
+      {sidebarContent}
     </aside>
   )
 }

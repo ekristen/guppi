@@ -58,12 +58,12 @@ export function StatusBar({ sessionCount, connected, activeSession, waitingCount
 
   return (
     <footer className="flex items-center justify-between px-4 py-1 border-t border-border bg-card text-xs text-muted-foreground font-mono font-bold">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 overflow-x-auto">
         {peersConfigured > 0 && (
-          <span>PEERS: <span className={peersConnected === peersConfigured ? 'text-foreground' : 'text-warning'}>{peersConnected}/{peersConfigured}</span></span>
+          <span className="hidden md:inline">PEERS: <span className={peersConnected === peersConfigured ? 'text-foreground' : 'text-warning'}>{peersConnected}/{peersConfigured}</span></span>
         )}
         {hosts.length > 1 && (
-          <span>HOSTS: <span className="text-foreground">{hostCount}</span></span>
+          <span className="hidden md:inline">HOSTS: <span className="text-foreground">{hostCount}</span></span>
         )}
         <span>SESSIONS: <span className="text-foreground">{sessionCount}</span></span>
         <span>AGENTS: <span className={totalAgents > 0 ? 'text-foreground' : ''}>{totalAgents}</span></span>
@@ -80,15 +80,15 @@ export function StatusBar({ sessionCount, connected, activeSession, waitingCount
           <span className="text-warning">WAITING: {waitingCount}</span>
         )}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 overflow-x-auto">
         {stats.cpu_percent !== undefined && (
-          <span>CPU: <span className="text-foreground">{stats.cpu_percent}%</span></span>
+          <span className="hidden md:inline">CPU: <span className="text-foreground">{stats.cpu_percent}%</span></span>
         )}
         {stats.memory && (
-          <span>MEM: <span className="text-foreground">{stats.memory.percent}%</span></span>
+          <span className="hidden md:inline">MEM: <span className="text-foreground">{stats.memory.percent}%</span></span>
         )}
         {pushState !== 'unsupported' && (
-          <span className="flex items-center gap-1">
+          <span className="hidden md:flex items-center gap-1">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
@@ -106,7 +106,7 @@ export function StatusBar({ sessionCount, connected, activeSession, waitingCount
           </span>
         </span>
         {version && (
-          <span className="flex items-center gap-1">
+          <span className="hidden md:flex items-center gap-1">
             {updateAvailable ? (
               <button
                 onClick={() => window.location.reload()}

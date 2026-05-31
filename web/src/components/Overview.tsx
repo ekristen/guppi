@@ -115,7 +115,7 @@ function UsageBar({ percent, color, label }: { percent: number; color: string; l
 
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-4 flex-1 min-w-[120px]">
+    <div className="bg-card border border-border rounded-lg p-4 flex-1 min-w-[90px]">
       <div className="text-2xl font-bold" style={{ color: color || 'var(--color-foreground)' }}>{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{label}</div>
       {sub && <div className="text-[11px] text-muted-foreground/60 mt-0.5">{sub}</div>}
@@ -234,7 +234,7 @@ function HostStatsSection({ host, totalPanes }: { host: Host; totalPanes: number
         <span className={`w-1.5 h-1.5 rounded-full ${host.online ? 'bg-success' : 'bg-muted-foreground'}`} />
         {host.name}
       </h3>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(340px,100%),1fr))] gap-3">
         {processes.length > 0 && (
           <div>
             <div className="text-xs text-muted-foreground mb-1.5">Processes</div>
@@ -388,7 +388,7 @@ export function Overview({
               {groupLabel}
               <span className="text-muted-foreground/60 font-normal text-xs">({groupSessions.length})</span>
             </h3>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] gap-3">
               {groupSessions.map((session) => {
                 const sk = sessionKey(session)
                 const events = getSessionEvents(sk)
@@ -490,7 +490,7 @@ export function Overview({
           return <HostStatsSection key={host.id} host={host} totalPanes={paneCount} />
         })
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(340px,100%),1fr))] gap-3">
           {stats && stats.processes && stats.processes.length > 0 && (
             <div>
               <h3 className="text-foreground text-sm font-semibold mb-2.5">Processes</h3>

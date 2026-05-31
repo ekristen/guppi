@@ -8,6 +8,9 @@ interface TopBarProps {
   currentView: string
   sidebarCollapsed: boolean
   onToggleCollapse: () => void
+  onToggleSidebar: () => void
+  isMobile?: boolean
+  sidebarOpen?: boolean
   onOverview: () => void
   onSettings: () => void
   onNewSession?: () => void
@@ -27,6 +30,9 @@ export function TopBar({
   currentView,
   sidebarCollapsed,
   onToggleCollapse,
+  onToggleSidebar,
+  isMobile,
+  sidebarOpen,
   onOverview,
   onSettings,
   onNewSession,
@@ -84,12 +90,14 @@ export function TopBar({
             </svg>
           </button>
           <button
-            onClick={onToggleCollapse}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={onToggleSidebar}
+            title={isMobile ? (sidebarOpen ? 'Close sidebar' : 'Open sidebar') : sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="p-1.5 rounded hover:bg-accent text-foreground transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {sidebarCollapsed ? (
+              {isMobile ? (
+                <polyline points="3 6 9 12 3 18" />
+              ) : sidebarCollapsed ? (
                 <polyline points="9 18 15 12 9 6" />
               ) : (
                 <polyline points="15 18 9 12 15 6" />

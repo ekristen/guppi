@@ -94,10 +94,30 @@
     width: 100%;
     overflow: hidden;
     overscroll-behavior: none;
-    touch-action: none;
+    touch-action: manipulation;
     position: fixed;
     inset: 0;
   }
+}
+
+/* Preserve touch-action: none only on terminal containers */
+.terminal-container {
+  touch-action: none;
+}
+
+/* Sidebar mobile slide animation */
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.2s ease-out;
 }
 
 /* Scrollbar styling */

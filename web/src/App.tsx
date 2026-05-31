@@ -24,6 +24,17 @@ import { applyTheme } from './theme'
 
 type View = 'overview' | 'session' | 'settings' | 'setup'
 
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint)
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [breakpoint])
+  return isMobile
+}
+
 function getViewFromPath(): { view: View; sessionKey: string | null } {
   if (window.location.pathname === '/settings') {
     return { view: 'settings', sessionKey: null }
@@ -64,6 +75,8 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('guppi:sidebar-collapsed') === 'true' } catch { return false }
   })
+  const isMobile = useIsMobile()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [terminalFullscreen, setTerminalFullscreen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const pendingSessionRef = useRef<string | null>(null)
@@ -116,6 +129,11 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
   useEffect(() => {
     localStorage.setItem('guppi:sidebar-collapsed', String(sidebarCollapsed))
   }, [sidebarCollapsed])
+
+  // Auto-close mobile sidebar overlay when session changes
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false)
+  }, [selectedSession, isMobile])
 
   // Sync URL -> state on popstate (back/forward)
   useEffect(() => {
@@ -412,6 +430,9 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
           currentView={currentView}
           sidebarCollapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          onToggleSidebar={() => isMobile ? setSidebarOpen(o => !o) : setSidebarCollapsed(c => !c)}
+          isMobile={isMobile}
+          sidebarOpen={sidebarOpen}
           onOverview={() => navigateTo(null)}
           onSettings={navigateToSettings}
           onNewSession={openNewSessionModal}
@@ -424,7 +445,8 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
       )}
       {/* Middle: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {!terminalFullscreen && (
+        {/* Desktop: persistent sidebar */}
+        {!isMobile && !terminalFullscreen && (
           <Sidebar
             sessions={sessions}
             selectedSession={selectedSession}
@@ -438,6 +460,26 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
             getSessionEvents={getSessionEvents}
             sessionNeedsAttention={sessionNeedsAttention}
             getSessionActivity={getSessionActivity}
+          />
+        )}
+        {/* Mobile: sidebar overlay */}
+        {isMobile && !terminalFullscreen && (
+          <Sidebar
+            sessions={sessions}
+            selectedSession={selectedSession}
+            collapsed={false}
+            collapseMode="small"
+            hasMultipleHosts={hasMultipleHosts}
+            onSessionSelect={handleSessionSelect}
+            onSessionRenamed={(oldKey, newKey) => {
+              if (selectedSession === oldKey) navigateTo(newKey)
+            }}
+            getSessionEvents={getSessionEvents}
+            sessionNeedsAttention={sessionNeedsAttention}
+            getSessionActivity={getSessionActivity}
+            isMobile={true}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
           />
         )}
         <div className="flex-1 flex flex-col overflow-hidden">
