@@ -13,6 +13,7 @@ type Session struct {
 	Created      time.Time `json:"created"`
 	Attached     bool      `json:"attached"`
 	LastActivity time.Time `json:"last_activity"`
+	Project      string    `json:"project,omitempty"`      // derived from active pane path; empty if unknown
 }
 
 // Window represents a tmux window

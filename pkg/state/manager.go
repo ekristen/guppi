@@ -5,6 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/ekristen/guppi/pkg/projects"
 	"github.com/ekristen/guppi/pkg/tmux"
 )
 
@@ -17,6 +18,8 @@ type Manager struct {
 	// Subscribers for state changes
 	subMu       sync.RWMutex
 	subscribers []chan StateEvent
+
+	resolver *projects.Resolver
 }
 
 // StateEvent represents a change in the state tree
@@ -58,6 +61,15 @@ func (m *Manager) Unsubscribe(ch chan StateEvent) {
 	}
 }
 
+// SetResolver installs a project resolver used to derive each session's
+// Project label from its active pane's path. Pass nil to disable project
+// derivation (the existing behavior).
+func (m *Manager) SetResolver(r *projects.Resolver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resolver = r
+}
+
 // broadcast sends an event to all subscribers
 func (m *Manager) broadcast(evt StateEvent) {
 	m.subMu.RLock()
@@ -79,6 +91,7 @@ func (m *Manager) UpdateSessions(sessions []*tmux.Session) {
 		if err := m.loadSessionDetails(session); err != nil {
 			logrus.WithError(err).WithField("session", session.Name).Warn("failed to load session details")
 		}
+		m.deriveProject(session)
 	}
 
 	m.mu.Lock()
@@ -178,6 +191,7 @@ func (m *Manager) GetSessions() []*tmux.Session {
 		if err := m.loadSessionDetails(session); err != nil {
 			logrus.WithError(err).WithField("session", session.Name).Warn("failed to load session details")
 		}
+		m.deriveProject(session)
 	}
 
 	m.mu.Lock()
@@ -188,4 +202,35 @@ func (m *Manager) GetSessions() []*tmux.Session {
 	m.mu.Unlock()
 
 	return sessions
+}
+
+// deriveProject populates session.Project from the first active pane's
+// CurrentPath (or the first pane with a non-empty path if no active pane
+// has one). Resolver may be nil — in that case Project is left as-is.
+func (m *Manager) deriveProject(session *tmux.Session) {
+	m.mu.Lock()
+	resolver := m.resolver
+	m.mu.Unlock()
+	if resolver == nil {
+		return
+	}
+	// Walk windows/panes looking for active-first path.
+	var fallback string
+	for _, w := range session.Windows {
+		for _, p := range w.Panes {
+			if p.CurrentPath == "" {
+				continue
+			}
+			if p.Active {
+				session.Project = resolver.Resolve(p.CurrentPath)
+				return
+			}
+			if fallback == "" {
+				fallback = p.CurrentPath
+			}
+		}
+	}
+	if fallback != "" {
+		session.Project = resolver.Resolve(fallback)
+	}
 }

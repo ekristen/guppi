@@ -15,6 +15,7 @@ import (
 	"github.com/ekristen/guppi/pkg/identity"
 	"github.com/ekristen/guppi/pkg/peer"
 	"github.com/ekristen/guppi/pkg/preferences"
+	"github.com/ekristen/guppi/pkg/projects"
 	"github.com/ekristen/guppi/pkg/server"
 	"github.com/ekristen/guppi/pkg/state"
 	"github.com/ekristen/guppi/pkg/tlscert"
@@ -32,6 +33,7 @@ func Execute(ctx context.Context, c *cli.Command) error {
 
 	// Initialize state manager
 	stateMgr := state.NewManager(client)
+	stateMgr.SetResolver(projects.NewResolver())
 
 	// Initialize tool event tracker
 	tracker := toolevents.NewTracker()
