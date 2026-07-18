@@ -115,6 +115,7 @@ func Execute(ctx context.Context, c *cli.Command) error {
 	// Start inactivity promoter — generates synthetic "waiting" events for
 	// tools that lack native waiting detection (copilot, codex, opencode)
 	go tracker.RunInactivityPromoter(ctx, toolevents.DefaultInactivityTimeout)
+	go tracker.StartReaper(ctx)
 
 	// Initialize preferences store
 	prefStore, err := preferences.NewStore()

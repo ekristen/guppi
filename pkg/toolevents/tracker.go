@@ -40,6 +40,8 @@ type Event struct {
 	Message      string    `json:"message,omitempty"`       // human-readable detail
 	Timestamp    time.Time `json:"timestamp"`
 	AutoDetected bool      `json:"auto_detected,omitempty"` // true if detected via process tree (not hooks)
+	Seen         bool      `json:"seen,omitempty"`          // true once user has viewed the session; applies to completed
+	ExpiresAt    time.Time `json:"expires_at,omitempty"`    // when this event should be dropped by the reaper (completed)
 }
 
 // PaneKey uniquely identifies a tmux pane
@@ -49,6 +51,15 @@ type PaneKey struct {
 	Window  int
 	Pane    string
 }
+
+// retentionTTL is how long a completed event stays in the tracker after the
+// agent reports completion. The frontend uses this window to surface a
+// "DONE — review needed" alert; after it elapses, the reaper drops the event.
+const retentionTTL = 5 * time.Minute
+
+// reapInterval controls how often the background reaper sweeps the events
+// map for expired completions.
+const reapInterval = 30 * time.Second
 
 // nativeWaitingTools is the set of tools that send explicit "waiting" events
 // via hooks. Tools not in this set will have inactivity-based and
@@ -104,15 +115,28 @@ func (t *Tracker) Record(evt *Event) {
 	}
 
 	t.mu.Lock()
-	if evt.Status == StatusCompleted || evt.Status == StatusActive {
-		// Completed and active events clear the tracking — active is transient
-		// and only serves to signal that waiting/error state should be dismissed
+	switch evt.Status {
+	case StatusActive:
+		// Active is transient: clear any prior event for this pane (waiting,
+		// error, or completed) so the alert UI dismisses. We do not store the
+		// active event itself.
 		_, existed := t.events[key]
 		delete(t.events, key)
 		log.WithFields(logrus.Fields{
 			"action": "clear", "had_existing": existed, "tracked_count": len(t.events),
-		}).Trace("tracker: cleared event (active/completed)")
-	} else {
+		}).Trace("tracker: cleared event (active)")
+	case StatusCompleted:
+		// Completed is retained with a TTL so the frontend can show a "done
+		// but not seen" notification for a short window. A subsequent active
+		// or waiting event for the same key will replace it (re-arming).
+		evt.Seen = false
+		evt.ExpiresAt = time.Now().Add(retentionTTL)
+		t.events[key] = evt
+		log.WithField("tracked_count", len(t.events)).Trace("tracker: stored completed event (with expiry)")
+	default:
+		// Waiting / error: store and clear any expiry so a re-recorded waiting
+		// event doesn't get reaped mid-attention-span.
+		evt.ExpiresAt = time.Time{}
 		t.events[key] = evt
 		log.WithField("tracked_count", len(t.events)).Trace("tracker: stored event (waiting/error)")
 	}
@@ -223,6 +247,65 @@ func (t *Tracker) Unsubscribe(ch chan *Event) {
 			close(ch)
 			return
 		}
+	}
+}
+
+// StartReaper launches a goroutine that periodically drops expired completed
+// events from the tracker so they don't accumulate. Safe to call once after
+// NewTracker; multiple calls are allowed but rare.
+func (t *Tracker) StartReaper(ctx context.Context) {
+	log := logrus.WithField("component", "event-reaper")
+	log.WithField("interval", reapInterval).Info("starting completed-event reaper")
+
+	ticker := time.NewTicker(reapInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("stopping completed-event reaper")
+			return
+		case <-ticker.C:
+			t.reapExpired()
+		}
+	}
+}
+
+// reapExpired removes completed events whose ExpiresAt has elapsed. Called by
+// the reaper goroutine and exposed for tests.
+func (t *Tracker) reapExpired() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	now := time.Now()
+	removed := 0
+	for key, evt := range t.events {
+		if evt.Status != StatusCompleted {
+			continue
+		}
+		if !evt.ExpiresAt.IsZero() && now.After(evt.ExpiresAt) {
+			delete(t.events, key)
+			removed++
+		}
+	}
+	if removed > 0 {
+		logrus.WithField("removed", removed).Trace("event-reaper: dropped expired completed events")
+	}
+}
+
+// MarkSeen flips Seen=true on every completed event for the given
+// host/session, so the frontend stops showing the "done but not seen"
+// alert. Idempotent. Other statuses (waiting/error) are not touched.
+func (t *Tracker) MarkSeen(host, session string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, evt := range t.events {
+		if evt.Status != StatusCompleted {
+			continue
+		}
+		if evt.Session != session || evt.Host != host {
+			continue
+		}
+		evt.Seen = true
 	}
 }
 

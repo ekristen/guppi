@@ -457,6 +457,22 @@ func Run(ctx context.Context, opts *Options) error {
 				w.WriteHeader(http.StatusNoContent)
 			})
 
+			// Mark all completed events for a session as seen.
+			// Called by the frontend when the user has the session open long
+			// enough to have noticed the "DONE" pill (≥2s dwell).
+			r.Post("/tool-events/seen", func(w http.ResponseWriter, r *http.Request) {
+				var req struct {
+					Host    string `json:"host"`
+					Session string `json:"session"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Session == "" {
+					http.Error(w, "session is required", http.StatusBadRequest)
+					return
+				}
+				opts.Tracker.MarkSeen(req.Host, req.Session)
+				w.WriteHeader(http.StatusNoContent)
+			})
+
 			// Stats endpoint — aggregate overview data
 			r.Get("/stats", func(w http.ResponseWriter, r *http.Request) {
 				sessions := opts.StateMgr.GetSessions()
