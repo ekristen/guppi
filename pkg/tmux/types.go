@@ -45,5 +45,6 @@ type Pane struct {
 	Width          int    `json:"width"`
 	Height         int    `json:"height"`
 	CurrentCommand string `json:"current_command"`
+	CurrentPath    string `json:"current_path,omitempty"`
 	PID            int    `json:"pid"`
 }

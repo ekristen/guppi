@@ -109,24 +109,49 @@ func (c *Client) ListWindows(sessionName string) ([]*Window, error) {
 // ListPanes returns panes for a window
 func (c *Client) ListPanes(target string) ([]*Pane, error) {
 	out, err := c.Exec("list-panes", "-t", target, "-F",
-		"#{pane_id}:#{window_id}:#{session_id}:#{pane_index}:#{pane_active}:#{pane_width}:#{pane_height}:#{pane_current_command}:#{pane_pid}")
+		"#{pane_id}:#{window_id}:#{session_id}:#{pane_index}:#{pane_active}:#{pane_width}:#{pane_height}:#{pane_current_command}:#{pane_pid}:#{pane_current_path}")
 	if err != nil {
 		return nil, err
 	}
 
+	return parsePanesOutput(out, 10), nil
+}
+
+// ListAllPanes returns all panes across all sessions
+func (c *Client) ListAllPanes() ([]*Pane, error) {
+	out, err := c.Exec("list-panes", "-a", "-F",
+		"#{pane_id}:#{window_id}:#{session_id}:#{pane_index}:#{pane_active}:#{pane_width}:#{pane_height}:#{pane_current_command}:#{pane_pid}:#{pane_current_path}")
+	if err != nil {
+		if strings.Contains(err.Error(), "no server running") || strings.Contains(err.Error(), "no sessions") {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return parsePanesOutput(out, 10), nil
+}
+
+// parsePanesOutput parses `list-panes` output into Pane structs.
+// The format string emits 10 fields per line; current_path (last field) may
+// be empty when tmux cannot determine the pane's path.
+func parsePanesOutput(out string, expectedFields int) []*Pane {
 	var panes []*Pane
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, ":", 9)
-		if len(parts) < 9 {
+		parts := strings.SplitN(line, ":", expectedFields)
+		if len(parts) < expectedFields {
 			continue
 		}
 		idx, _ := strconv.Atoi(parts[3])
 		w, _ := strconv.Atoi(parts[5])
 		h, _ := strconv.Atoi(parts[6])
 		pid, _ := strconv.Atoi(parts[8])
+		var path string
+		if expectedFields >= 10 {
+			path = parts[9]
+		}
 		panes = append(panes, &Pane{
 			ID:             parts[0],
 			WindowID:       parts[1],
@@ -136,10 +161,11 @@ func (c *Client) ListPanes(target string) ([]*Pane, error) {
 			Width:          w,
 			Height:         h,
 			CurrentCommand: parts[7],
+			CurrentPath:    path,
 			PID:            pid,
 		})
 	}
-	return panes, nil
+	return panes
 }
 
 // ListAllPanesDetailed returns all panes with session name and window index
@@ -170,45 +196,6 @@ func (c *Client) ListAllPanesDetailed() ([]*PaneDetailed, error) {
 			Session: parts[1],
 			Window:  winIdx,
 			PID:     pid,
-		})
-	}
-	return panes, nil
-}
-
-// ListAllPanes returns all panes across all sessions
-func (c *Client) ListAllPanes() ([]*Pane, error) {
-	out, err := c.Exec("list-panes", "-a", "-F",
-		"#{pane_id}:#{window_id}:#{session_id}:#{pane_index}:#{pane_active}:#{pane_width}:#{pane_height}:#{pane_current_command}:#{pane_pid}")
-	if err != nil {
-		if strings.Contains(err.Error(), "no server running") || strings.Contains(err.Error(), "no sessions") {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	var panes []*Pane
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 9)
-		if len(parts) < 9 {
-			continue
-		}
-		idx, _ := strconv.Atoi(parts[3])
-		w, _ := strconv.Atoi(parts[5])
-		h, _ := strconv.Atoi(parts[6])
-		pid, _ := strconv.Atoi(parts[8])
-		panes = append(panes, &Pane{
-			ID:             parts[0],
-			WindowID:       parts[1],
-			SessionID:      parts[2],
-			Index:          idx,
-			Active:         parts[4] == "1",
-			Width:          w,
-			Height:         h,
-			CurrentCommand: parts[7],
-			PID:            pid,
 		})
 	}
 	return panes, nil
