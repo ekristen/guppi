@@ -86,6 +86,14 @@ function getHiddenSessions(): Set<string> {
   }
 }
 
+// Events the user actually needs to act on: any waiting/error or a
+// completed event the user hasn't acknowledged yet.
+function alertEvents(events: ToolEvent[]): ToolEvent[] {
+  return events.filter(e =>
+    e.status === 'waiting' || e.status === 'error' || (e.status === 'completed' && !e.seen)
+  )
+}
+
 function setHiddenSessions(hidden: Set<string>) {
   localStorage.setItem('guppi:hidden-sessions', JSON.stringify([...hidden]))
 }
@@ -230,19 +238,17 @@ export function Sidebar({
 
           {/* Row 2: sparkline */}
           {!collapsed && prefs.sparklines_visible && act && act.sparkline && (
-            <div className={cn('mt-1.5 w-full', events.filter(e => e.status === 'waiting' || e.status === 'error').length > 0 && 'mb-1')}>
+            <div className={cn('mt-1.5 w-full', alertEvents(events).length > 0 && 'mb-1')}>
               <Sparkline data={act.sparkline} height={14} />
             </div>
           )}
 
           {/* Row 3: agent badges */}
-          {!collapsed && events.filter(e => e.status === 'waiting' || e.status === 'error').length > 0 && (
+          {!collapsed && alertEvents(events).length > 0 && (
             <div className="flex gap-1 flex-wrap mt-1">
-              {events
-                .filter(e => e.status === 'waiting' || e.status === 'error')
-                .map((evt, i) => (
-                  <ToolBadge key={`${evt.tool}-${evt.pane}-${i}`} event={evt} />
-                ))}
+              {alertEvents(events).map((evt, i) => (
+                <ToolBadge key={`${evt.tool}-${evt.pane}-${i}`} event={evt} />
+              ))}
             </div>
           )}
         </button>
@@ -269,8 +275,50 @@ export function Sidebar({
             </li>
           )}
 
-          {hasMultipleHosts ? (
-            // Group by host
+          {(prefs.sidebar.group_by || 'host') === 'project' ? (
+            // Group by project — sessions without a derived project land under "ungrouped".
+            (() => {
+              const groups = new Map<string, Session[]>()
+              for (const s of visibleSessions) {
+                const label = s.project || 'ungrouped'
+                if (!groups.has(label)) groups.set(label, [])
+                groups.get(label)!.push(s)
+              }
+              return Array.from(groups.entries()).sort(([a], [b]) => {
+                // Ungrouped always last, then alphabetical.
+                if (a === 'ungrouped') return 1
+                if (b === 'ungrouped') return -1
+                return a.localeCompare(b)
+              }).map(([projectLabel, projSessions]) => {
+                const alertCount = projSessions.reduce((acc, s) => {
+                  const evts = getSessionEvents(sessionKey(s))
+                  return acc + evts.filter(e => e.status === 'waiting' || e.status === 'error' || (e.status === 'completed' && !e.seen)).length
+                }, 0)
+                return (
+                  <li key={projectLabel}>
+                    {!collapsed && (
+                      <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+                        <span className="flex-1 truncate">{projectLabel}</span>
+                        {alertCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-warning/20 text-warning font-mono">
+                            {alertCount}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <ul className="space-y-0.5">
+                      {projSessions.map(session => renderSessionItem(session))}
+                    </ul>
+                  </li>
+                )
+              })
+            })()
+          ) : (prefs.sidebar.group_by || 'host') === 'none' || !hasMultipleHosts ? (
+            // Flat list when group_by == 'none' or there is only one host and grouping is the default.
+            visibleSessions.map((session) => renderSessionItem(session))
+          ) : (
+            // Default: group by host
             (() => {
               const groups = new Map<string, Session[]>()
               for (const s of visibleSessions) {
@@ -295,8 +343,6 @@ export function Sidebar({
                 </li>
               ))
             })()
-          ) : (
-            visibleSessions.map((session) => renderSessionItem(session))
           )}
 
           {/* Hidden sessions */}

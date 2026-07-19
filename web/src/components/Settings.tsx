@@ -409,6 +409,17 @@ export function Settings({ pushState, onPushSubscribe, onPushUnsubscribe, onLogo
                 ]}
               />
             </Row>
+            <Row label="Sidebar Group By" description="How sessions are grouped in the sidebar">
+              <SelectInput
+                value={prefs.sidebar.group_by || 'host'}
+                onChange={(v) => updateNested('sidebar', { group_by: v as 'host' | 'project' | 'none' })}
+                options={[
+                  { value: 'host', label: 'By host (default)' },
+                  { value: 'project', label: 'By project (git repo)' },
+                  { value: 'none', label: 'No grouping, flat list' },
+                ]}
+              />
+            </Row>
             <Row label="Sparklines" description="Show activity sparklines in sidebar">
               <Toggle
                 checked={prefs.sparklines_visible}

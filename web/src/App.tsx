@@ -7,6 +7,7 @@ import { NewSessionModal } from './components/NewSessionModal'
 import { TopBar } from './components/TopBar'
 import { StatusBar } from './components/StatusBar'
 import { Settings } from './components/Settings'
+import { ProjectTabs } from './components/ProjectTabs'
 import { HelpModal } from './components/HelpModal'
 import { Login } from './components/Login'
 import { Setup } from './components/Setup'
@@ -47,7 +48,7 @@ function getViewFromPath(): { view: View; sessionKey: string | null } {
 
 function AppInner({ onLogout }: { onLogout?: () => void }) {
   const { sessions, refresh } = useSessions()
-  const { events: allToolEvents, handleEvent: handleToolEvent, getSessionEvents, sessionNeedsAttention, dismissEvent, dismissAll: dismissAllEvents } = useToolEvents()
+  const { events: allToolEvents, handleEvent: handleToolEvent, getSessionEvents, sessionNeedsAttention, dismissEvent, dismissAll: dismissAllEvents, markSessionSeen } = useToolEvents()
   const { getSessionActivity, handleActivityEvent } = useActivity()
   const { pushState, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const { processToolEvent } = useNotifications(pushState === 'subscribed')
@@ -68,6 +69,16 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
   const [helpOpen, setHelpOpen] = useState(false)
   const pendingSessionRef = useRef<string | null>(null)
   const { prefs } = usePreferences()
+
+  // Active project filter — when set, the sidebar shows only sessions
+  // belonging to that project. Persisted in localStorage so it survives
+  // navigations and reloads.
+  const [activeProject, setActiveProject] = useState<string | null>(() => {
+    try { return localStorage.getItem('guppi:active-project') || null } catch { return null }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('guppi:active-project', activeProject || '') } catch {}
+  }, [activeProject])
 
   // Auto-lock: idle detection + optional background accelerator
   const lastActivityRef = useRef<number>(Date.now())
@@ -384,6 +395,17 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
     }
   }, [currentView])
 
+  // Mark the selected session's completed events as seen after a 2 second
+  // dwell. Long enough that a drive-by scroll doesn't dismiss, short enough
+  // that actively looking at the session counts as "noticed".
+  useEffect(() => {
+    if (!selectedSession || currentView !== 'session') return
+    const timer = window.setTimeout(() => {
+      markSessionSeen(selectedSession)
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [selectedSession, currentView, markSessionSeen])
+
   const showingTerminal = currentView === 'session' && !!selectedSession
 
   return (
@@ -422,11 +444,20 @@ function AppInner({ onLogout }: { onLogout?: () => void }) {
           onDismissAll={dismissAllEvents}
         />
       )}
+      {/* Project tab strip (filters sidebar). Hidden in fullscreen — terminal-only mode. */}
+      {!terminalFullscreen && (
+        <ProjectTabs
+          sessions={sessions}
+          events={allToolEvents}
+          activeProject={activeProject}
+          onSelectProject={setActiveProject}
+        />
+      )}
       {/* Middle: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
         {!terminalFullscreen && (
           <Sidebar
-            sessions={sessions}
+            sessions={activeProject ? sessions.filter(s => (s.project || 'ungrouped') === activeProject) : sessions}
             selectedSession={selectedSession}
             collapsed={sidebarCollapsed}
             collapseMode={(prefs.sidebar.collapse_mode || 'small') as 'small' | 'hidden'}
