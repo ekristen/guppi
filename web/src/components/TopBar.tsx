@@ -36,7 +36,11 @@ export function TopBar({
   onDismiss,
   onDismissAll,
 }: TopBarProps) {
-  const actionable = events.filter(e => e.status === 'waiting' || e.status === 'error')
+  const actionable = events.filter(e =>
+    e.status === 'waiting' ||
+    e.status === 'error' ||
+    (e.status === 'completed' && !e.seen)
+  )
   const [expanded, setExpanded] = useState<string | null>(null)
   const { prefs } = usePreferences()
   const dismissTimers = useRef<Map<string, number>>(new Map())
@@ -107,7 +111,9 @@ export function TopBar({
             <span className="text-xs text-muted-foreground">NO ALERTS</span>
           ) : (
             actionable.map((evt, i) => {
-              const config = statusConfig[evt.status]
+              // Map completed-unseen onto its styled config entry.
+              const configKey = evt.status === 'completed' && !evt.seen ? 'completed-unseen' : evt.status
+              const config = statusConfig[configKey]
               if (!config) return null
               const toolColor = toolColors[evt.tool] || 'var(--muted-foreground)'
               const key = `${evt.tool}-${evt.session}-${evt.pane}-${i}`

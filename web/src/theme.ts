@@ -10,6 +10,7 @@ export const statusConfig: Record<string, { color: string; label: string; icon?:
     waiting: { color: 'var(--warning)', label: 'Waiting', icon: '●', bg: 'color-mix(in oklch, var(--warning) 8%, transparent)' },
     error: { color: 'var(--destructive)', label: 'Error', icon: '!', bg: 'color-mix(in oklch, var(--destructive) 8%, transparent)' },
     completed: { color: 'var(--success)', label: 'Completed', icon: '✓', bg: 'color-mix(in oklch, var(--success) 8%, transparent)' },
+    'completed-unseen': { color: 'var(--success)', label: 'DONE', icon: '✓', bg: 'color-mix(in oklch, var(--success) 12%, transparent)' },
 }
 
 export interface ThemePreset {

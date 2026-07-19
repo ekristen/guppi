@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { parseSessionKey } from './useSessions'
 
 export interface ToolEvent {
   tool: string
@@ -11,6 +12,8 @@ export interface ToolEvent {
   message?: string
   timestamp: string
   auto_detected?: boolean
+  seen?: boolean
+  expires_at?: string
 }
 
 export function useToolEvents() {
@@ -51,6 +54,8 @@ export function useToolEvents() {
       message: evt.message,
       timestamp: evt.timestamp,
       auto_detected: evt.auto_detected,
+      seen: evt.seen,
+      expires_at: evt.expires_at,
     }
 
     setEvents(prev => {
@@ -59,12 +64,11 @@ export function useToolEvents() {
       const filtered = prev.filter(
         e => !(e.session === toolEvt.session && e.window === toolEvt.window && (e.pane || '') === (toolEvt.pane || '') && (e.host || '') === (toolEvt.host || ''))
       )
-      // Don't persist completed events
-      if (toolEvt.status === 'completed') {
-        return filtered
-      }
       // Keep auto-detected active events so they count toward agent totals;
-      // hook-based active events are transient and should be cleared
+      // hook-based active events are transient and should be cleared.
+      // Completed events are retained (with a seen flag) so the UI can
+      // surface a "DONE — review needed" alert; the server reaps them
+      // after the configured TTL.
       if (toolEvt.status === 'active' && !toolEvt.auto_detected) {
         return filtered
       }
@@ -95,6 +99,32 @@ export function useToolEvents() {
     return events.some(e => e.session === name && e.host === host && e.status === 'waiting')
   }, [events])
 
+  // Mark all completed events for a session as seen (dismisses the
+  // "DONE — review needed" alert). Optimistic local update + server
+  // POST; idempotent on the server side.
+  const markSessionSeen = useCallback(async (sessKey: string) => {
+    const { host, name } = parseSessionKey(sessKey)
+    let touched = false
+    setEvents(prev => prev.map(e => {
+      if (e.status !== 'completed') return e
+      if (e.session !== name) return e
+      if ((e.host || '') !== host) return e
+      if (e.seen) return e
+      touched = true
+      return { ...e, seen: true }
+    }))
+    if (!touched) return
+    try {
+      await fetch('/api/tool-events/seen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, session: name }),
+      })
+    } catch (err) {
+      console.error('Failed to mark session seen:', err)
+    }
+  }, [])
+
   // Dismiss a specific event (clear from server and local state)
   const dismissEvent = useCallback(async (evt: ToolEvent) => {
     try {
@@ -121,5 +151,5 @@ export function useToolEvents() {
     setEvents([])
   }, [])
 
-  return { events, handleEvent, getSessionEvents, sessionNeedsAttention, dismissEvent, dismissAll, refresh }
+  return { events, handleEvent, getSessionEvents, sessionNeedsAttention, dismissEvent, dismissAll, markSessionSeen, refresh }
 }
