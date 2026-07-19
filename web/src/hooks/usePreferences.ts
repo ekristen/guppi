@@ -12,6 +12,7 @@ export interface Preferences {
     default_collapsed: boolean
     hidden_sessions: string[]
     collapse_mode: string
+    group_by?: 'host' | 'project' | 'none'
   }
   default_view: string
   notifications: {
@@ -42,6 +43,7 @@ export const defaultPreferences: Preferences = {
     default_collapsed: false,
     hidden_sessions: [],
     collapse_mode: 'small',
+    group_by: 'host',
   },
   default_view: 'overview',
   notifications: {

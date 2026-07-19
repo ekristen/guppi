@@ -17,6 +17,7 @@ type Sidebar struct {
 	DefaultCollapsed bool     `json:"default_collapsed"`
 	HiddenSessions   []string `json:"hidden_sessions"`
 	CollapseMode     string   `json:"collapse_mode"`
+	GroupBy          string   `json:"group_by,omitempty"` // 'host' (default) | 'project' | 'none'
 }
 
 type Notifications struct {
@@ -58,6 +59,7 @@ func Default() *Preferences {
 			DefaultCollapsed: false,
 			HiddenSessions:   []string{},
 			CollapseMode:     "small",
+			GroupBy:          "host",
 		},
 		DefaultView: "overview",
 		Notifications: Notifications{

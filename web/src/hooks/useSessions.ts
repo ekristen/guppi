@@ -29,6 +29,7 @@ export interface Session {
   host_name?: string   // peer display name
   host_online?: boolean
   windows: Window[]
+  project?: string
   created: string
   attached: boolean
   last_activity: string
